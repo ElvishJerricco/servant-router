@@ -1,0 +1,9 @@
+flags: {}
+extra-package-dbs: []
+packages:
+- '.'
+extra-deps:
+- aeson-0.11.2.0
+- servant-0.7.1
+- text-1.2.2.1
+resolver: lts-5.17
