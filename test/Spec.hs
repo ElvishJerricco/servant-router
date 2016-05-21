@@ -7,8 +7,8 @@ import           Data.Traversable
 import           Servant.API
 import           Servant.Router
 
-type TestApi = "root" :> Capture "cap" Int :> QueryParam "param" String :> EmptyRoute
-          :<|> "other" :> Capture "othercap" String :> EmptyRoute
+type TestApi = "root" :> Capture "cap" Int :> QueryParam "param" String :> View
+          :<|> "other" :> Capture "othercap" String :> View
 testApi :: Proxy TestApi
 testApi = Proxy
 

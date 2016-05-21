@@ -22,12 +22,12 @@ import           Servant.API
 import           Web.HttpApiData
 
 -- | Router terminator.
--- The 'HasRouter' instance for 'EmptyRoute' finalizes the router.
+-- The 'HasRouter' instance for 'View' finalizes the router.
 --
 -- Example:
 --
--- > type MyApi = "books" :> Capture "bookId" Int :> EmptyRoute
-data EmptyRoute
+-- > type MyApi = "books" :> Capture "bookId" Int :> View
+data View
 
 -- | 'Location' is used to split the path and query of a URI into components.
 data Location = Location
@@ -105,8 +105,8 @@ instance (HasRouter sublayout, KnownSymbol path)
     (Proxy :: Proxy path)
     (route (Proxy :: Proxy sublayout) m a page)
 
-instance HasRouter EmptyRoute where
-  type RouteT EmptyRoute m a = m a
+instance HasRouter View where
+  type RouteT View m a = m a
   route _ _ _ = RPage
 
 -- | Use a handler to route a location, represented as a 'String'.

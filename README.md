@@ -24,8 +24,8 @@ import           Reflex.Dom.Contrib.Router
 import           Servant.API
 import           Servant.Router
 
-type MyApi = "books" :> Capture "id" Int :> EmptyRoute
-        :<|> "search" :> QueryParam "keywords" String :> EmptyRoute
+type MyApi = "books" :> Capture "id" Int :> View
+        :<|> "search" :> QueryParam "keywords" String :> View
 myApi :: Proxy MyApi
 myApi = Proxy
 
