@@ -59,7 +59,7 @@ main = routeSite $ \uri -> do
 Serving
 ---
 
-When using `servant-router` on the front-end in Single Page APplications (SPAs),
+When using `servant-router` on the front-end in Single Page Applications (SPAs),
 you still need to serve the application from the back-end.
 To share the routing layout between the front-end and back-end,
 the `View` endpoints need to be converted to a verb like `Get`.
