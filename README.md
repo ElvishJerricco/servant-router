@@ -55,3 +55,34 @@ main = routeSite $ \uri -> do
     -- If 'Right', the result of the route is returned.
     Right e -> return e
 ```
+
+Serving
+---
+
+When using `servant-router` on the front-end in Single Page APplications (SPAs),
+you still need to serve the application from the back-end.
+To share the routing layout between the front-end and back-end,
+the `View` endpoints need to be converted to a verb like `Get`.
+Plus, with an SPA,
+all the end-points should serve the same HTML on the back-end.
+To do this, use the `ViewTransform` type family, and `constHandler` function.
+
+```haskell
+type Views = "books" :> View
+        :<|> "search" :> QueryParam "query" String :> View
+
+-- Equivalent to:
+--
+--   type ViewsServer = "books" :> Get '[HTML] Blaze.Html
+--          :<|> "search" :> QueryParam "query" String :> Get '[HTML] Blaze.Html
+type ViewsServer = ViewTransform Views (Get '[HTML] Blaze.Html)
+
+viewsServer :: Server ViewsServer
+viewsServer = constHandler
+	    (Proxy :: Proxy ViewsServer)
+	    (Proxy :: Proxy Handler) $
+	    docTypeHtml $ do
+	      H.head $ return ()
+	      body $
+	        script ! src "app.js" $ return ()
+```
