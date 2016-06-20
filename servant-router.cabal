@@ -10,7 +10,7 @@ maintainer:          willfancher38@gmail.com
 copyright:           2016 Will Fancher
 category:            Web
 build-type:          Simple
--- extra-source-files:
+extra-source-files:  README.md
 cabal-version:       >=1.10
 
 library
