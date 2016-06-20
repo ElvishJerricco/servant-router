@@ -65,11 +65,20 @@ type family ViewTransform layout view where
 -- 'RuoteT' is used to build up the handler types.
 -- 'Router' is returned, to be interpretted by 'routeLoc'.
 class HasRouter layout where
+  -- | A route handler.
   type RouteT layout (m :: * -> *) a :: *
+  -- | Create a constant route handler that returns @a@
+  constHandler :: Monad m => Proxy layout -> Proxy m -> a -> RouteT layout m a
+  -- | Transform a route handler into a 'Router'.
   route :: Proxy layout -> Proxy m -> Proxy a -> RouteT layout m a -> Router m a
+  -- | Create a 'Router' from a constant.
+  routeConst :: Monad m => Proxy layout -> Proxy m -> a -> Router m a
+  routeConst l m a = route l m (Proxy :: Proxy a) (constHandler l m a)
 
 instance (HasRouter x, HasRouter y) => HasRouter (x :<|> y) where
   type RouteT (x :<|> y) m a = RouteT x m a :<|> RouteT y m a
+  constHandler _ m a = constHandler (Proxy :: Proxy x) m a
+                  :<|> constHandler (Proxy :: Proxy y) m a
   route
     _
     (m :: Proxy m)
@@ -78,41 +87,47 @@ instance (HasRouter x, HasRouter y) => HasRouter (x :<|> y) where
     = RChoice (route (Proxy :: Proxy x) m a x) (route (Proxy :: Proxy y) m a y)
 
 instance (HasRouter sublayout, FromHttpApiData x)
-    => HasRouter (Capture sym x :> sublayout) where
+         => HasRouter (Capture sym x :> sublayout) where
   type RouteT (Capture sym x :> sublayout) m a = x -> RouteT sublayout m a
+  constHandler _ m a _ = constHandler (Proxy :: Proxy sublayout) m a
   route _ m a f = RCapture (route (Proxy :: Proxy sublayout) m a . f)
 
 instance (HasRouter sublayout, FromHttpApiData x, KnownSymbol sym)
-    => HasRouter (QueryParam sym x :> sublayout) where
+         => HasRouter (QueryParam sym x :> sublayout) where
   type RouteT (QueryParam sym x :> sublayout) m a
     = Maybe x -> RouteT sublayout m a
+  constHandler _ m a _ = constHandler (Proxy :: Proxy sublayout) m a
   route _ m a f = RQueryParam
     (Proxy :: Proxy sym)
     (route (Proxy :: Proxy sublayout) m a . f)
 
 instance (HasRouter sublayout, FromHttpApiData x, KnownSymbol sym)
-    => HasRouter (QueryParams sym x :> sublayout) where
+         => HasRouter (QueryParams sym x :> sublayout) where
   type RouteT (QueryParams sym x :> sublayout) m a = [x] -> RouteT sublayout m a
+  constHandler _ m a _ = constHandler (Proxy :: Proxy sublayout) m a
   route _ m a f = RQueryParams
     (Proxy :: Proxy sym)
     (route (Proxy :: Proxy sublayout) m a . f)
 
 instance (HasRouter sublayout, KnownSymbol sym)
-    => HasRouter (QueryFlag sym :> sublayout) where
+         => HasRouter (QueryFlag sym :> sublayout) where
   type RouteT (QueryFlag sym :> sublayout) m a = Bool -> RouteT sublayout m a
+  constHandler _ m a _ = constHandler (Proxy :: Proxy sublayout) m a
   route _ m a f = RQueryFlag
     (Proxy :: Proxy sym)
     (route (Proxy :: Proxy sublayout) m a . f)
 
 instance (HasRouter sublayout, KnownSymbol path)
-    => HasRouter (path :> sublayout) where
+         => HasRouter (path :> sublayout) where
   type RouteT (path :> sublayout) m a = RouteT sublayout m a
+  constHandler _ = constHandler (Proxy :: Proxy sublayout)
   route _ m a page = RPath
     (Proxy :: Proxy path)
     (route (Proxy :: Proxy sublayout) m a page)
 
 instance HasRouter View where
   type RouteT View m a = m a
+  constHandler _ _ = return
   route _ _ _ = RPage
 
 -- | Use a handler to route a location, represented as a 'String'.
