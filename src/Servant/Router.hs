@@ -54,6 +54,12 @@ data Router m a where
   RPath         :: KnownSymbol sym => Proxy sym -> Router m a -> Router m a
   RPage         :: m a -> Router m a
 
+-- | Transform a layout by replacing 'View' with another type
+type family ViewTransform layout view where
+  ViewTransform (a :<|> b) view = ViewTransform a view :<|> ViewTransform b view
+  ViewTransform (a :> b) view = a :> ViewTransform b view
+  ViewTransform View view = view
+
 -- | This is similar to the @HasServer@ class from @servant-server@.
 -- It is the class responsible for making API combinators routable.
 -- 'RuoteT' is used to build up the handler types.
