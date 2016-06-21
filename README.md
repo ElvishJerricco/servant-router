@@ -79,7 +79,7 @@ type ViewsServer = ViewTransform Views (Get '[HTML] Blaze.Html)
 
 viewsServer :: Server ViewsServer
 viewsServer = constHandler
-	    (Proxy :: Proxy ViewsServer)
+	    (Proxy :: Proxy Views)
 	    (Proxy :: Proxy Handler) $
 	    docTypeHtml $ do
 	      H.head $ return ()
