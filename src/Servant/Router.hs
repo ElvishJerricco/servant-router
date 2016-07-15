@@ -130,16 +130,23 @@ instance HasRouter View where
   constHandler _ _ = return
   route _ _ _ = RPage
 
+-- | Use a handler to route a 'Location'.
+-- Normally 'runRoute' should be used instead, unless you want custom
+-- handling of string failing to parse as 'URI'.
+runRouteLoc :: forall layout m a. (HasRouter layout, MonadError RoutingError m)
+         => Location -> Proxy layout -> RouteT layout m a -> m a
+runRouteLoc loc layout page =
+  let routing = route layout (Proxy :: Proxy m) (Proxy :: Proxy a) page
+  in routeLoc loc routing
+
 -- | Use a handler to route a location, represented as a 'String'.
 -- All handlers must, in the end, return @m a@.
 -- 'routeLoc' will choose a route and return its result.
 runRoute :: forall layout m a. (HasRouter layout, MonadError RoutingError m)
          => String -> Proxy layout -> RouteT layout m a -> m a
-runRoute loc' layout page = case uriToLocation <$> parseURI loc' of
+runRoute uriString layout page = case uriToLocation <$> parseURIReference uriString of
   Nothing -> throwError FailFatal
-  Just uri -> let
-    routing = route layout (Proxy :: Proxy m) (Proxy :: Proxy a) page
-    in routeLoc uri routing
+  Just loc -> runRouteLoc loc layout page
 
 -- | Use a computed 'Router' to route a 'Location'.
 routeLoc :: MonadError RoutingError m => Location -> Router m a -> m a

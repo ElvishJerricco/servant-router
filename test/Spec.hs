@@ -16,8 +16,10 @@ testUris :: [String]
 testUris =
   [ "https://test.com/root/4?param=hi"
   , "https://test.com/other/hi/"
+  , "/other/relativeMatch"
   , "https://test.com/fail"
   , "https://test.com/root/fail"
+  , "/root/relativeFail"
   ]
 
 main :: IO ()
