@@ -9,7 +9,6 @@
 
 module Servant.Router where
 
-import           Control.Monad.Except
 import qualified Data.ByteString.Char8 as BS
 import           Data.Proxy
 import           Data.Text             (Text)
@@ -133,8 +132,8 @@ instance HasRouter View where
 -- | Use a handler to route a 'Location'.
 -- Normally 'runRoute' should be used instead, unless you want custom
 -- handling of string failing to parse as 'URI'.
-runRouteLoc :: forall layout m a. (HasRouter layout, MonadError RoutingError m)
-         => Location -> Proxy layout -> RouteT layout m a -> m a
+runRouteLoc :: forall layout m a. (HasRouter layout, Monad m)
+         => Location -> Proxy layout -> RouteT layout m a -> m (Either RoutingError a)
 runRouteLoc loc layout page =
   let routing = route layout (Proxy :: Proxy m) (Proxy :: Proxy a) page
   in routeLoc loc routing
@@ -142,44 +141,47 @@ runRouteLoc loc layout page =
 -- | Use a handler to route a location, represented as a 'String'.
 -- All handlers must, in the end, return @m a@.
 -- 'routeLoc' will choose a route and return its result.
-runRoute :: forall layout m a. (HasRouter layout, MonadError RoutingError m)
-         => String -> Proxy layout -> RouteT layout m a -> m a
+runRoute :: forall layout m a. (HasRouter layout, Monad m)
+         => String -> Proxy layout -> RouteT layout m a -> m (Either RoutingError a)
 runRoute uriString layout page = case uriToLocation <$> parseURIReference uriString of
-  Nothing -> throwError FailFatal
+  Nothing -> return $ Left FailFatal
   Just loc -> runRouteLoc loc layout page
 
 -- | Use a computed 'Router' to route a 'Location'.
-routeLoc :: MonadError RoutingError m => Location -> Router m a -> m a
+routeLoc :: Monad m => Location -> Router m a -> m (Either RoutingError a)
 routeLoc loc r = case r of
-  RChoice a b -> catchError (routeLoc loc a) $ \e -> case e of
-    Fail -> routeLoc loc b
-    FailFatal -> throwError e
+  RChoice a b -> do
+    result <- routeLoc loc a
+    case result of
+      Left Fail -> routeLoc loc b
+      Left FailFatal -> return $ Left FailFatal
+      Right x -> return $ Right x
   RCapture f -> case locPath loc of
-    [] -> throwError Fail
+    [] -> return $ Left Fail
     capture:paths -> maybe
-      (throwError FailFatal)
+      (return $ Left FailFatal)
       (routeLoc loc { locPath = paths })
       (f <$> parseUrlPieceMaybe capture)
   RQueryParam sym f -> case lookup (BS.pack $ symbolVal sym) (locQuery loc) of
     Nothing -> routeLoc loc $ f Nothing
-    Just Nothing -> throwError FailFatal
+    Just Nothing -> return $ Left FailFatal
     Just (Just text) -> case parseQueryParamMaybe (decodeUtf8 text) of
-      Nothing -> throwError FailFatal
+      Nothing -> return $ Left FailFatal
       Just x -> routeLoc loc $ f (Just x)
-  RQueryParams sym f -> maybe (throwError FailFatal) (routeLoc loc . f) $ do
+  RQueryParams sym f -> maybe (return $ Left FailFatal) (routeLoc loc . f) $ do
     ps <- sequence $ snd <$> filter
       (\(k, _) -> k == BS.pack (symbolVal sym)) (locQuery loc)
     sequence $ (parseQueryParamMaybe . decodeUtf8) <$> ps
   RQueryFlag sym f -> case lookup (BS.pack $ symbolVal sym) (locQuery loc) of
     Nothing -> routeLoc loc $ f False
     Just Nothing -> routeLoc loc $ f True
-    Just (Just _) -> throwError FailFatal
+    Just (Just _) -> return $ Left FailFatal
   RPath sym a -> case locPath loc of
-    [] -> throwError Fail
+    [] -> return $ Left Fail
     p:paths -> if p == T.pack (symbolVal sym)
       then routeLoc (loc { locPath = paths }) a
-      else throwError Fail
-  RPage a -> a
+      else return $ Left Fail
+  RPage a -> Right <$> a
 
 -- | Convert a 'URI' to a 'Location'.
 uriToLocation :: URI -> Location

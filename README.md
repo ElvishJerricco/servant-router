@@ -46,7 +46,7 @@ main = routeSite $ \uri -> do
         -- Here you would display the search bar plus results.
         return never
   -- With the handler constructed, run the router with the uri.
-  result <- runExceptT $ runRoute uri myApi handler
+  result <- runRoute uri myApi handler
   case result of
     -- If 'Left', there was no correct route for the uri.
     Left _ -> do

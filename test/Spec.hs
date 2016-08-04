@@ -1,9 +1,8 @@
 {-# LANGUAGE DataKinds     #-}
 {-# LANGUAGE TypeOperators #-}
 
-import           Control.Monad.Except
+import           Data.Foldable
 import           Data.Proxy
-import           Data.Traversable
 import           Servant.API
 import           Servant.Router
 
@@ -24,10 +23,10 @@ testUris =
 
 main :: IO ()
 main = do
-  let root :: Int -> Maybe String -> ExceptT RoutingError IO ()
-      root i s = liftIO $ print (i, s)
-      other :: String -> ExceptT RoutingError IO ()
-      other s = liftIO $ print s
-  void $ for testUris $ \uri -> do
-    result <- runExceptT $ runRoute uri testApi (root :<|> other)
+  let root :: Int -> Maybe String -> IO ()
+      root i s = print (i, s)
+      other :: String -> IO ()
+      other = print
+  for_ testUris $ \uri -> do
+    result <- runRoute uri testApi (root :<|> other)
     print result

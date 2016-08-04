@@ -23,7 +23,6 @@ library
                      , http-types     == 0.9.*
                      , network-uri    == 2.6.*
                      , bytestring     == 0.10.*
-                     , mtl            == 2.2.*
   default-language:    Haskell2010
   ghc-options:         -Wall
 
@@ -34,7 +33,6 @@ test-suite servant-router-test
   build-depends:       base
                      , servant-router
                      , servant
-                     , mtl
   ghc-options:         -Wall -threaded -rtsopts -with-rtsopts=-N
   default-language:    Haskell2010
 
@@ -46,7 +44,6 @@ test-suite server-test
                      , servant-router
                      , servant-server
                      , servant-blaze
-                     , mtl
                      , warp
                      , blaze-html
   ghc-options:         -Wall -threaded -rtsopts -with-rtsopts=-N
