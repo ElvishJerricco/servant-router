@@ -1,5 +1,5 @@
 name:                servant-router
-version:             0.8.1
+version:             0.9.0
 synopsis:            Servant router for non-server applications.
 description:         Write Servant APIs to be routed without a server.
 homepage:            https://github.com/ElvishJerricco/servant-router
