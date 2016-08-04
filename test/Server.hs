@@ -6,20 +6,20 @@ import           Data.Proxy
 import           Network.Wai.Handler.Warp
 import           Servant
 import           Servant.HTML.Blaze
-import           Servant.Router
+import           Servant.ServerT
 import           Text.Blaze.Html5            as H hiding (main)
 import           Text.Blaze.Html5.Attributes
 
-type Views = "books" :> View
-        :<|> "search" :> QueryParam "query" String :> View
-views :: Proxy Views
+type Views a = "books" :> Get '[HTML] a
+        :<|> "search" :> QueryParam "query" String :> Get '[HTML] a
+views :: Proxy (Views Html)
 views = Proxy
 
 type Api = "api" :> "books" :> Get '[JSON] [String]
 api :: Proxy Api
 api = Proxy
 
-type WholeServer = ViewTransform Views (Get '[HTML] Html)
+type WholeServer = Views Html
               :<|> Api
 wholeServer :: Proxy WholeServer
 wholeServer = Proxy

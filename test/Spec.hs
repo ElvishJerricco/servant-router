@@ -7,8 +7,8 @@ import           Data.Traversable
 import           Servant.API
 import           Servant.Router
 
-type TestApi = "root" :> Capture "cap" Int :> QueryParam "param" String :> View
-          :<|> "other" :> Capture "othercap" String :> View
+type TestApi = "root" :> Capture "cap" Int :> QueryParam "param" String :> View ()
+          :<|> "other" :> Capture "othercap" String :> View ()
 testApi :: Proxy TestApi
 testApi = Proxy
 
@@ -29,5 +29,5 @@ main = do
       other :: String -> ExceptT RoutingError IO ()
       other s = liftIO $ print s
   void $ for testUris $ \uri -> do
-    result <- runExceptT $ runRoute uri testApi (root :<|> other)
+    result <- runExceptT $ runRoute uri testApi (Proxy :: Proxy ()) (root :<|> other)
     print result

@@ -19,6 +19,7 @@ import           GHC.TypeLits
 import           Network.HTTP.Types
 import           Network.URI
 import           Servant.API
+import           Servant.ServerT
 import           Web.HttpApiData
 
 -- | Router terminator.
@@ -27,7 +28,7 @@ import           Web.HttpApiData
 -- Example:
 --
 -- > type MyApi = "books" :> Capture "bookId" Int :> View
-data View
+data View a
 
 -- | 'Location' is used to split the path and query of a URI into components.
 data Location = Location
@@ -54,99 +55,77 @@ data Router m a where
   RPath         :: KnownSymbol sym => Proxy sym -> Router m a -> Router m a
   RPage         :: m a -> Router m a
 
--- | Transform a layout by replacing 'View' with another type
-type family ViewTransform layout view where
-  ViewTransform (a :<|> b) view = ViewTransform a view :<|> ViewTransform b view
-  ViewTransform (a :> b) view = a :> ViewTransform b view
-  ViewTransform View view = view
-
 -- | This is similar to the @HasServer@ class from @servant-server@.
 -- It is the class responsible for making API combinators routable.
 -- 'RuoteT' is used to build up the handler types.
 -- 'Router' is returned, to be interpretted by 'routeLoc'.
-class HasRouter layout where
-  -- | A route handler.
-  type RouteT layout (m :: * -> *) a :: *
-  -- | Create a constant route handler that returns @a@
-  constHandler :: Monad m => Proxy layout -> Proxy m -> a -> RouteT layout m a
+class HasConstHandler layout c => HasRouter layout c where
   -- | Transform a route handler into a 'Router'.
-  route :: Proxy layout -> Proxy m -> Proxy a -> RouteT layout m a -> Router m a
+  route :: Proxy layout -> Proxy m -> Proxy c -> ServerT layout m -> Router m c
   -- | Create a 'Router' from a constant.
-  routeConst :: Monad m => Proxy layout -> Proxy m -> a -> Router m a
-  routeConst l m a = route l m (Proxy :: Proxy a) (constHandler l m a)
+  routeConst :: Monad m => Proxy layout -> Proxy m -> c -> Router m c
+  routeConst l m c = route l m (Proxy :: Proxy c) (constHandler l m c)
 
-instance (HasRouter x, HasRouter y) => HasRouter (x :<|> y) where
-  type RouteT (x :<|> y) m a = RouteT x m a :<|> RouteT y m a
-  constHandler _ m a = constHandler (Proxy :: Proxy x) m a
-                  :<|> constHandler (Proxy :: Proxy y) m a
+instance (HasRouter x c, HasRouter y c) => HasRouter (x :<|> y) c where
   route
     _
     (m :: Proxy m)
-    (a :: Proxy a)
-    ((x :: RouteT x m a) :<|> (y :: RouteT y m a))
-    = RChoice (route (Proxy :: Proxy x) m a x) (route (Proxy :: Proxy y) m a y)
+    (c :: Proxy c)
+    ((x :: ServerT x m) :<|> (y :: ServerT y m))
+    = RChoice (route (Proxy :: Proxy x) m c x) (route (Proxy :: Proxy y) m c y)
 
-instance (HasRouter sublayout, FromHttpApiData x)
-         => HasRouter (Capture sym x :> sublayout) where
-  type RouteT (Capture sym x :> sublayout) m a = x -> RouteT sublayout m a
-  constHandler _ m a _ = constHandler (Proxy :: Proxy sublayout) m a
-  route _ m a f = RCapture (route (Proxy :: Proxy sublayout) m a . f)
+instance (HasRouter sublayout c, FromHttpApiData x)
+         => HasRouter (Capture sym x :> sublayout) c where
+  route _ m c f = RCapture (route (Proxy :: Proxy sublayout) m c . f)
 
-instance (HasRouter sublayout, FromHttpApiData x, KnownSymbol sym)
-         => HasRouter (QueryParam sym x :> sublayout) where
-  type RouteT (QueryParam sym x :> sublayout) m a
-    = Maybe x -> RouteT sublayout m a
-  constHandler _ m a _ = constHandler (Proxy :: Proxy sublayout) m a
-  route _ m a f = RQueryParam
+instance (HasRouter sublayout c, FromHttpApiData x, KnownSymbol sym)
+         => HasRouter (QueryParam sym x :> sublayout) c where
+  route _ m c f = RQueryParam
     (Proxy :: Proxy sym)
-    (route (Proxy :: Proxy sublayout) m a . f)
+    (route (Proxy :: Proxy sublayout) m c . f)
 
-instance (HasRouter sublayout, FromHttpApiData x, KnownSymbol sym)
-         => HasRouter (QueryParams sym x :> sublayout) where
-  type RouteT (QueryParams sym x :> sublayout) m a = [x] -> RouteT sublayout m a
-  constHandler _ m a _ = constHandler (Proxy :: Proxy sublayout) m a
-  route _ m a f = RQueryParams
+instance (HasRouter sublayout c, FromHttpApiData x, KnownSymbol sym)
+         => HasRouter (QueryParams sym x :> sublayout) c where
+  route _ m c f = RQueryParams
     (Proxy :: Proxy sym)
-    (route (Proxy :: Proxy sublayout) m a . f)
+    (route (Proxy :: Proxy sublayout) m c . f)
 
-instance (HasRouter sublayout, KnownSymbol sym)
-         => HasRouter (QueryFlag sym :> sublayout) where
-  type RouteT (QueryFlag sym :> sublayout) m a = Bool -> RouteT sublayout m a
-  constHandler _ m a _ = constHandler (Proxy :: Proxy sublayout) m a
-  route _ m a f = RQueryFlag
+instance (HasRouter sublayout c, KnownSymbol sym)
+         => HasRouter (QueryFlag sym :> sublayout) c where
+  route _ m c f = RQueryFlag
     (Proxy :: Proxy sym)
-    (route (Proxy :: Proxy sublayout) m a . f)
+    (route (Proxy :: Proxy sublayout) m c . f)
 
-instance (HasRouter sublayout, KnownSymbol path)
-         => HasRouter (path :> sublayout) where
-  type RouteT (path :> sublayout) m a = RouteT sublayout m a
-  constHandler _ = constHandler (Proxy :: Proxy sublayout)
-  route _ m a page = RPath
+instance (HasRouter sublayout c, KnownSymbol path)
+         => HasRouter (path :> sublayout) c where
+  route _ m c page = RPath
     (Proxy :: Proxy path)
-    (route (Proxy :: Proxy sublayout) m a page)
+    (route (Proxy :: Proxy sublayout) m c page)
 
-instance HasRouter View where
-  type RouteT View m a = m a
+instance HasServerT (View (c :: *)) where
+  type ServerT (View c) m = m c
+instance HasConstHandler (View c) c where
   constHandler _ _ = return
+instance HasRouter (View c) c where
   route _ _ _ = RPage
 
 -- | Use a handler to route a 'Location'.
 -- Normally 'runRoute' should be used instead, unless you want custom
 -- handling of string failing to parse as 'URI'.
-runRouteLoc :: forall layout m a. (HasRouter layout, MonadError RoutingError m)
-         => Location -> Proxy layout -> RouteT layout m a -> m a
-runRouteLoc loc layout page =
-  let routing = route layout (Proxy :: Proxy m) (Proxy :: Proxy a) page
+runRouteLoc :: forall layout m c. (HasRouter layout c, MonadError RoutingError m)
+            => Location -> Proxy layout -> Proxy c -> ServerT layout m -> m c
+runRouteLoc loc layout c page =
+  let routing = route layout (Proxy :: Proxy m) c page
   in routeLoc loc routing
 
 -- | Use a handler to route a location, represented as a 'String'.
 -- All handlers must, in the end, return @m a@.
 -- 'routeLoc' will choose a route and return its result.
-runRoute :: forall layout m a. (HasRouter layout, MonadError RoutingError m)
-         => String -> Proxy layout -> RouteT layout m a -> m a
-runRoute uriString layout page = case uriToLocation <$> parseURIReference uriString of
+runRoute :: forall layout m c. (HasRouter layout c, MonadError RoutingError m)
+         => String -> Proxy layout -> Proxy c -> ServerT layout m -> m c
+runRoute uriString layout c page = case uriToLocation <$> parseURIReference uriString of
   Nothing -> throwError FailFatal
-  Just loc -> runRouteLoc loc layout page
+  Just loc -> runRouteLoc loc layout c page
 
 -- | Use a computed 'Router' to route a 'Location'.
 routeLoc :: MonadError RoutingError m => Location -> Router m a -> m a

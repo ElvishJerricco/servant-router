@@ -16,6 +16,7 @@ cabal-version:       >=1.10
 library
   hs-source-dirs:      src
   exposed-modules:     Servant.Router
+                     , Servant.ServerT
   build-depends:       base           >= 4.8 && < 5
                      , servant        == 0.7.*
                      , text           == 1.2.*
