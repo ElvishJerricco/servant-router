@@ -1,3 +1,5 @@
+{-# LANGUAGE UndecidableInstances #-}
+{-# LANGUAGE DataKinds #-}
 {-# LANGUAGE FlexibleContexts      #-}
 {-# LANGUAGE FlexibleInstances     #-}
 {-# LANGUAGE GADTs                 #-}
@@ -27,6 +29,10 @@ import           Web.HttpApiData
 --
 -- > type MyApi = "books" :> Capture "bookId" Int :> View
 data View
+
+instance HasLink View where
+  type MkLink View = MkLink (Get '[] ())
+  toLink _ = toLink (Proxy :: Proxy (Get '[] ()))
 
 -- | 'Location' is used to split the path and query of a URI into components.
 data Location = Location
