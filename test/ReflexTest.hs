@@ -1,13 +1,16 @@
-{-# LANGUAGE DataKinds     #-}
+{-# LANGUAGE DataKinds #-}
 {-# LANGUAGE TypeOperators #-}
+{-# LANGUAGE OverloadedStrings #-}
 
 module Main where
 
-import           Data.Proxy
-import           Reflex.Dom
-import           Reflex.Dom.Contrib.Router
-import           Servant.API
-import           Servant.Router
+import Data.Monoid
+import Data.Proxy
+import qualified Data.Text as Text
+import Reflex.Dom
+import Reflex.Dom.Contrib.Router
+import Servant.API
+import Servant.Router
 
 type MyApi = "books" :> Capture "id" Int :> View
         :<|> "search" :> QueryParam "keywords" String :> View
@@ -23,17 +26,17 @@ main = routeSite $ \uri -> do
       books i = do
         -- Here, you would get and display a book.
         -- Return a Reflex event for changing the browser location.
-        el "div" $ text $ "Book: " ++ show i
+        el "div" $ text $ "Book: " <> Text.pack (show i)
         return never
       search Nothing = do
         -- Here, you would display a search bar.
         return never
       search (Just keywords) = do
         -- Here you would display the search bar plus results.
-        el "div" $ text $ "You searched: " ++ keywords
+        el "div" $ text $ "You searched: " <> Text.pack keywords
         return never
   -- With the handler constructed, run the router with the uri.
-  result <- runRoute uri myApi handler
+  result <- runRoute (Text.unpack uri) myApi handler
   case result of
     -- If 'Left', there was no correct route for the uri.
     Left _ -> do
