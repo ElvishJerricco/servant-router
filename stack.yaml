@@ -1,12 +1,44 @@
-flags: {}
-extra-package-dbs: []
+nix:
+  packages:
+  - git
+  - gmp
+  - pkgconfig
+  - webkitgtk24x
+  - zlib
+  # Silly build tool requirements... https://github.com/commercialhaskell/stack/issues/595
+  - haskellPackages.gtk2hs-buildtools
 packages:
 - '.'
 - location:
-    git: https://github.com/reflex-frp/reflex-dom-contrib.git
-    commit: d6c744928c81bdb0cd3141f05f7529dc0dae5327
+    git: https://github.com/reflex-frp/reflex
+    commit: 50d298cb1b5ed850ec017e2aab10ffa1fb5466b0
+- location:
+    git: https://github.com/reflex-frp/reflex-dom
+    commit: 8d203761ab4cbdb2060a48d980fbb6acbce21c5d
+- location:
+    git: https://github.com/reflex-frp/reflex-dom-contrib
+    commit: abf986d13e2a690a4d117b4810ac0a50296333f4
+- location:
+    git: https://github.com/gtk2hs/gtk2hs
+    commit: eee61d84edf1dd44f8d380d7d7cae2405de50124
+  subdirs:
+  - tools
+  - glib
+  - gio
+  - gtk
+  - cairo
+  - pango
+- location:
+    git: https://github.com/ryantrinkle/webkit
+    commit: be8046844e8108f88407a2e5548d0c19911cb012
+- location:
+    git: https://github.com/ryantrinkle/webkit-javascriptcore
+    commit: f3f4a05754ee0d76511ab7aaa6d080b4212d80e8
+- location:
+    git: https://github.com/ryantrinkle/timezone-series
+    commit: f8dece8c016db6476e2bb0d4f972769a76f6ff40
 extra-deps:
 - ref-tf-0.4.0.1
-- reflex-0.4.0
-- reflex-dom-0.3
-resolver: lts-6.4
+- ghcjs-dom-0.2.4.0
+- zenc-0.1.1
+resolver: lts-7.7
