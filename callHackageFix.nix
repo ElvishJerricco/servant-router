@@ -1,3 +1,11 @@
+# Reflex platform is using a very outdated nixpkgs, and updating would
+# be pretty nontrivial. To use `callHackage` to bump packages to newer
+# versions, we have to update `all-cabal-hashes`. I tried doing this
+# in the `packageOverrides` to `nixpkgsFunc` in `reflex-platform`, but
+# `haskellPackages` didn't seem to notice the difference, and used the
+# old `all-cabal-hashes` anyway. So here we just redefine
+# `callHackage` to use our own.
+
 pkgs: haskellPackages:
 
 let
