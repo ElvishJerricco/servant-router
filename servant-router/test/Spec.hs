@@ -1,17 +1,21 @@
-{-# LANGUAGE DataKinds     #-}
+{-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE DataKinds #-}
 {-# LANGUAGE TypeOperators #-}
+{-# LANGUAGE OverloadedStrings #-}
 
-import           Data.Foldable
-import           Data.Proxy
-import           Servant.API
-import           Servant.Router
+import Data.ByteString (ByteString)
+import Data.Foldable
+import Data.Proxy
+import Servant.API
+import Servant.Router
+import URI.ByteString
 
 type TestApi = "root" :> Capture "cap" Int :> QueryParam "param" String :> View
           :<|> "other" :> Capture "othercap" String :> View
 testApi :: Proxy TestApi
 testApi = Proxy
 
-testUris :: [String]
+testUris :: [ByteString]
 testUris =
   [ "https://test.com/root/4?param=hi"
   , "https://test.com/other/hi/"
@@ -28,5 +32,12 @@ main = do
       other :: String -> IO ()
       other = print
   for_ testUris $ \uri -> do
-    result <- runRoute uri testApi (root :<|> other)
+    result <- sequence $ withURI strictURIParserOptions uri $ \x ->
+      runRouteUri testApi (root :<|> other) x
     print result
+
+-- TODO: Maybe open a pull request with this on uri-bytestring?
+withURI :: URIParserOptions -> ByteString -> (forall a . URIRef a -> b) -> Either URIParseError b
+withURI opts str f = case parseRelativeRef opts str of
+  Right x -> Right (f x)
+  Left  _ -> f <$> parseURI opts str

@@ -21,7 +21,7 @@ library
                      , text           == 1.2.*
                      , http-api-data  >= 0.2 && < 0.4
                      , http-types     == 0.9.*
-                     , network-uri    == 2.6.*
+                     , uri-bytestring == 0.2.*
                      , bytestring     == 0.10.*
   default-language:    Haskell2010
   ghc-options:         -Wall
@@ -33,6 +33,8 @@ test-suite servant-router-test
   build-depends:       base
                      , servant-router
                      , servant
+                     , bytestring
+                     , uri-bytestring
   ghc-options:         -Wall -threaded -rtsopts -with-rtsopts=-N
   default-language:    Haskell2010
 

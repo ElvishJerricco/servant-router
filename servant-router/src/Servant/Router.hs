@@ -1,25 +1,25 @@
 {-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE DataKinds #-}
-{-# LANGUAGE FlexibleContexts      #-}
-{-# LANGUAGE FlexibleInstances     #-}
-{-# LANGUAGE GADTs                 #-}
+{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE GADTs #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE PolyKinds             #-}
-{-# LANGUAGE ScopedTypeVariables   #-}
-{-# LANGUAGE TypeFamilies          #-}
-{-# LANGUAGE TypeOperators         #-}
+{-# LANGUAGE PolyKinds #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE TypeOperators #-}
 
 module Servant.Router where
 
 import qualified Data.ByteString.Char8 as BS
 import           Data.Proxy
-import           Data.Text             (Text)
-import qualified Data.Text             as T
+import           Data.Text (Text)
+import qualified Data.Text as T
 import           Data.Text.Encoding
 import           GHC.TypeLits
-import           Network.HTTP.Types
-import           Network.URI
-import           Servant.API
+import           Network.HTTP.Types (decodePathSegments)
+import           Servant.API hiding (URI(..))
+import           URI.ByteString
 import           Web.HttpApiData
 
 -- | Router terminator.
@@ -33,12 +33,6 @@ data View
 instance HasLink View where
   type MkLink View = MkLink (Get '[] ())
   toLink _ = toLink (Proxy :: Proxy (Get '[] ()))
-
--- | 'Location' is used to split the path and query of a URI into components.
-data Location = Location
-  { locPath  :: [Text]
-  , locQuery :: Query
-  } deriving (Show, Eq, Ord)
 
 -- | When routing, the router may fail to match a location.
 -- Either this is an unrecoverable failure,
@@ -138,60 +132,52 @@ instance HasRouter View where
 -- | Use a handler to route a 'Location'.
 -- Normally 'runRoute' should be used instead, unless you want custom
 -- handling of string failing to parse as 'URI'.
-runRouteLoc :: forall layout m a. (HasRouter layout, Monad m)
-         => Location -> Proxy layout -> RouteT layout m a -> m (Either RoutingError a)
-runRouteLoc loc layout page =
+runRouteUri
+  :: forall uri layout m a . (HasRouter layout, Monad m) => Proxy layout
+     -> RouteT layout m a
+     -> URIRef uri
+     -> m (Either RoutingError a)
+runRouteUri layout page uri =
   let routing = route layout (Proxy :: Proxy m) (Proxy :: Proxy a) page
-  in routeLoc loc routing
+      toMaybeQuery (k, v) = if BS.null v then (k, Nothing) else (k, Just v)
 
--- | Use a handler to route a location, represented as a 'String'.
--- All handlers must, in the end, return @m a@.
--- 'routeLoc' will choose a route and return its result.
-runRoute :: forall layout m a. (HasRouter layout, Monad m)
-         => String -> Proxy layout -> RouteT layout m a -> m (Either RoutingError a)
-runRoute uriString layout page = case uriToLocation <$> parseURIReference uriString of
-  Nothing -> return $ Left FailFatal
-  Just loc -> runRouteLoc loc layout page
+      (path, query) = case uri of
+        URI{}         -> (uriPath uri, uriQuery uri)
+        RelativeRef{} -> (rrPath uri, rrQuery uri)
+  in  routeUri (toMaybeQuery <$> queryPairs query) (decodePathSegments path) routing
 
 -- | Use a computed 'Router' to route a 'Location'.
-routeLoc :: Monad m => Location -> Router m a -> m (Either RoutingError a)
-routeLoc loc r = case r of
-  RChoice a b -> do
-    result <- routeLoc loc a
+routeUri
+  :: Monad m
+  => [(BS.ByteString, Maybe BS.ByteString)]
+  -> [Text]
+  -> Router m a
+  -> m (Either RoutingError a)
+routeUri queries pathSegs r = case r of
+  RChoice a b        -> do
+    result <- routeUri queries pathSegs a
     case result of
-      Left Fail -> routeLoc loc b
-      Left FailFatal -> return $ Left FailFatal
-      Right x -> return $ Right x
-  RCapture f -> case locPath loc of
+      Left  Fail      -> routeUri queries pathSegs b
+      Left  FailFatal -> return $ Left FailFatal
+      Right x         -> return $ Right x
+  RCapture f         -> case pathSegs of
     [] -> return $ Left Fail
-    capture:paths -> maybe
-      (return $ Left FailFatal)
-      (routeLoc loc { locPath = paths })
-      (f <$> parseUrlPieceMaybe capture)
-  RQueryParam sym f -> case lookup (BS.pack $ symbolVal sym) (locQuery loc) of
-    Nothing -> routeLoc loc $ f Nothing
-    Just Nothing -> return $ Left FailFatal
+    capture:paths ->
+      maybe (return $ Left FailFatal) (routeUri queries paths) (f <$> parseUrlPieceMaybe capture)
+  RQueryParam  sym f -> case lookup (BS.pack $ symbolVal sym) queries of
+    Nothing          -> routeUri queries pathSegs $ f Nothing
+    Just Nothing     -> return $ Left FailFatal
     Just (Just text) -> case parseQueryParamMaybe (decodeUtf8 text) of
       Nothing -> return $ Left FailFatal
-      Just x -> routeLoc loc $ f (Just x)
-  RQueryParams sym f -> maybe (return $ Left FailFatal) (routeLoc loc . f) $ do
-    ps <- sequence $ snd <$> filter
-      (\(k, _) -> k == BS.pack (symbolVal sym)) (locQuery loc)
+      Just x  -> routeUri queries pathSegs $ f (Just x)
+  RQueryParams sym f -> maybe (return $ Left FailFatal) (routeUri queries pathSegs . f) $ do
+    ps <- sequence $ snd <$> filter (\(k, _) -> k == BS.pack (symbolVal sym)) queries
     sequence $ (parseQueryParamMaybe . decodeUtf8) <$> ps
-  RQueryFlag sym f -> case lookup (BS.pack $ symbolVal sym) (locQuery loc) of
-    Nothing -> routeLoc loc $ f False
-    Just Nothing -> routeLoc loc $ f True
+  RQueryFlag   sym f -> case lookup (BS.pack $ symbolVal sym) queries of
+    Nothing       -> routeUri queries pathSegs $ f False
+    Just Nothing  -> routeUri queries pathSegs $ f True
     Just (Just _) -> return $ Left FailFatal
-  RPath sym a -> case locPath loc of
-    [] -> return $ Left Fail
-    p:paths -> if p == T.pack (symbolVal sym)
-      then routeLoc (loc { locPath = paths }) a
-      else return $ Left Fail
-  RPage a -> Right <$> a
-
--- | Convert a 'URI' to a 'Location'.
-uriToLocation :: URI -> Location
-uriToLocation uri = Location
-  { locPath = decodePathSegments $ BS.pack (uriPath uri)
-  , locQuery = parseQuery $ BS.pack (uriQuery uri)
-  }
+  RPath        sym a -> case pathSegs of
+    []      -> return $ Left Fail
+    p:paths -> if p == T.pack (symbolVal sym) then routeUri queries paths a else return $ Left Fail
+  RPage a            -> Right <$> a
