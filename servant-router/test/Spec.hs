@@ -33,7 +33,7 @@ main = do
       other = print
   for_ testUris $ \uri -> do
     result <- sequence $ withURI strictURIParserOptions uri $ \x ->
-      runRouteUri testApi (root :<|> other) x
+      routeURI testApi (root :<|> other) x
     print result
 
 -- TODO: Maybe open a pull request with this on uri-bytestring?

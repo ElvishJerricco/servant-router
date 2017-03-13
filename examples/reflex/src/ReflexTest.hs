@@ -40,7 +40,7 @@ widget = do
         el "div" $ text $ "You searched: " <> Text.pack keywords
         return never
       -- Use reflex-dom-contrib for handling the address bar.
-      routeHandler = route' (\_ uri -> uri) (runRouteUri myApi handler)
+      routeHandler = route' (\_ uri -> uri) (routeURI myApi handler)
   
   rec dynamicRoute <- routeHandler (switch (current changeRoute))
       routeWasSet  <- dyn dynamicRoute -- Will fire on postbuild
