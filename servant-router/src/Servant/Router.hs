@@ -184,4 +184,6 @@ routeQueryAndPath queries pathSegs r = case r of
     [] -> return $ Left Fail
     p:paths ->
       if p == T.pack (symbolVal sym) then routeQueryAndPath queries paths a else return $ Left Fail
-  RPage a          -> Right <$> a
+  RPage a          -> case pathSegs of
+    [] -> Right <$> a
+    _ -> return $ Left Fail
